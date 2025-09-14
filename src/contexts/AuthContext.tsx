@@ -101,11 +101,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           if (response.ok) {
             const data = await response.json();
+            console.log('Auth verification successful:', data);
             dispatch({
               type: 'AUTH_SUCCESS',
               payload: { user: data.user, token },
             });
           } else {
+            console.log('Auth verification failed:', response.status, response.statusText);
             localStorage.removeItem('token');
             dispatch({ type: 'AUTH_FAILURE' });
           }
@@ -158,7 +160,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const register = async (username: string, email: string, password: string) => {
+  const register = async (username: string, email: string, password: string, secretKey?: string) => {
     dispatch({ type: 'AUTH_START' });
 
     try {
@@ -167,7 +169,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ username, email, password }),
+        body: JSON.stringify({ username, email, password, secretKey }),
       });
 
       if (!response.ok) {

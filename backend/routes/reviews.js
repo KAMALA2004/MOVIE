@@ -2,10 +2,12 @@ const express = require('express');
 const { body, query, validationResult } = require('express-validator');
 const { Review, Movie, User } = require('../models');
 
+const MovieService = require('../services/movieService');
+
 const router = express.Router();
 
 // Submit a new review
-router.post('/movies/:movieId', [
+router.post('/movies/:imdbId', [
   body('rating')
     .isInt({ min: 1, max: 10 })
     .withMessage('Rating must be between 1 and 10'),
@@ -28,22 +30,16 @@ router.post('/movies/:movieId', [
       });
     }
 
-    const { movieId } = req.params;
+    const { imdbId } = req.params;
     const { rating, review_text, is_spoiler = false } = req.body;
     const userId = req.user.id;
 
-    // Check if movie exists
-    const movie = await Movie.findByPk(movieId);
-    if (!movie) {
-      return res.status(404).json({
-        error: 'Movie not found',
-        message: 'The requested movie does not exist'
-      });
-    }
+    // Get or create movie by IMDb ID
+    const movie = await MovieService.getOrCreateMovieByImdbId(imdbId);
 
     // Check if user already reviewed this movie
     const existingReview = await Review.findOne({
-      where: { user_id: userId, movie_id: movieId }
+      where: { user_id: userId, movie_id: movie.id }
     });
 
     if (existingReview) {
@@ -56,14 +52,14 @@ router.post('/movies/:movieId', [
     // Create review
     const review = await Review.create({
       user_id: userId,
-      movie_id: movieId,
+      movie_id: movie.id,
       rating,
       review_text,
       is_spoiler
     });
 
     // Update movie's average rating and total reviews
-    await updateMovieRating(movieId);
+    await updateMovieRating(movie.id);
 
     // Fetch the created review with user data
     const reviewWithUser = await Review.findByPk(review.id, {
@@ -266,8 +262,8 @@ router.get('/user/:userId', [
   }
 });
 
-// Get recent reviews
-router.get('/', [
+// Get user's reviews
+router.get('/user/:userId', [
   query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
   query('limit').optional().isInt({ min: 1, max: 50 }).withMessage('Limit must be between 1 and 50')
 ], async (req, res) => {
@@ -316,10 +312,10 @@ router.get('/', [
       }
     });
   } catch (error) {
-    console.error('Get recent reviews error:', error);
+    console.error('Get user reviews error:', error);
     res.status(500).json({
-      error: 'Failed to fetch reviews',
-      message: 'Unable to retrieve recent reviews'
+      error: 'Failed to fetch user reviews',
+      message: 'Unable to retrieve user reviews'
     });
   }
 });

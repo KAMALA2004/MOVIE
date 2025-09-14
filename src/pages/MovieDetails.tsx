@@ -1,21 +1,19 @@
 import * as React from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Play, Heart, Star, Calendar, Clock, Users, ArrowLeft } from "lucide-react";
+import { Play, Star, Calendar, Clock, Users, ArrowLeft } from "lucide-react";
 import { getMovieDetails, getMovieCredits, mockMovies, getImageUrl } from "@/lib/omdb";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { StarRating } from "@/components/ui/star-rating";
 import { Separator } from "@/components/ui/separator";
-import { Textarea } from "@/components/ui/textarea";
+import { WatchlistButton } from "@/components/ui/watchlist-button";
+import { ReviewsSection } from "@/components/ui/reviews-section";
 import { useToast } from "@/hooks/use-toast";
 
 const MovieDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [userRating, setUserRating] = React.useState(0);
-  const [reviewText, setReviewText] = React.useState("");
 
   const movieId = id || '';
 
@@ -39,28 +37,6 @@ const MovieDetailsPage: React.FC = () => {
   const movie = movieDetails || mockMovies.find(m => m.imdbID === movieId) || mockMovies[0];
   const cast = credits?.cast ? credits.cast.split(', ').slice(0, 8).map((name, index) => ({ id: index, name, character: '' })) : [];
 
-  const handleSubmitReview = () => {
-    if (!userRating) {
-      toast({
-        title: "Rating Required",
-        description: "Please select a rating before submitting your review.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    toast({
-      title: "Sign In Required",
-      description: "Please sign in to submit reviews.",
-    });
-  };
-
-  const handleAddToWatchlist = () => {
-    toast({
-      title: "Sign In Required", 
-      description: "Please sign in to add movies to your watchlist.",
-    });
-  };
 
   const handleWatchTrailer = () => {
     toast({
@@ -166,15 +142,12 @@ const MovieDetailsPage: React.FC = () => {
                   Watch Trailer
                 </Button>
                 
-                <Button 
-                  variant="outline" 
+                <WatchlistButton
+                  imdbId={movie.imdbID}
+                  movieTitle={movie.Title}
                   size="lg"
                   className="hover:bg-accent/10"
-                  onClick={handleAddToWatchlist}
-                >
-                  <Heart className="h-5 w-5 mr-2" />
-                  Add to Watchlist
-                </Button>
+                />
               </div>
             </div>
           </div>
@@ -206,79 +179,7 @@ const MovieDetailsPage: React.FC = () => {
 
             {/* Reviews Section */}
             <section>
-              <h2 className="text-2xl font-bold mb-6 gradient-text">Reviews</h2>
-              
-              {/* Write Review */}
-              <div className="bg-card rounded-lg p-6 mb-8">
-                <h3 className="text-lg font-semibold mb-4">Write a Review</h3>
-                
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Your Rating</label>
-                    <StarRating
-                      rating={userRating}
-                      interactive
-                      onRatingChange={setUserRating}
-                      size="lg"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Your Review</label>
-                    <Textarea
-                      placeholder="Share your thoughts about this movie..."
-                      value={reviewText}
-                      onChange={(e) => setReviewText(e.target.value)}
-                      rows={4}
-                    />
-                  </div>
-                  
-                  <Button onClick={handleSubmitReview} className="bg-gradient-primary hover:opacity-90">
-                    Submit Review
-                  </Button>
-                </div>
-              </div>
-
-              {/* Sample Reviews */}
-              <div className="space-y-6">
-                <div className="bg-card rounded-lg p-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center">
-                        <span className="text-primary-foreground font-medium">JD</span>
-                      </div>
-                      <div>
-                        <p className="font-medium">John Doe</p>
-                        <p className="text-xs text-muted-foreground">2 days ago</p>
-                      </div>
-                    </div>
-                    <StarRating rating={4.5} size="sm" />
-                  </div>
-                  <p className="text-muted-foreground">
-                    An absolutely phenomenal film that showcases incredible storytelling and character development. 
-                    The cinematography is breathtaking and the performances are top-notch.
-                  </p>
-                </div>
-
-                <div className="bg-card rounded-lg p-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center">
-                        <span className="text-primary-foreground font-medium">MS</span>
-                      </div>
-                      <div>
-                        <p className="font-medium">Movie Specialist</p>
-                        <p className="text-xs text-muted-foreground">1 week ago</p>
-                      </div>
-                    </div>
-                    <StarRating rating={5} size="sm" />
-                  </div>
-                  <p className="text-muted-foreground">
-                    A masterpiece of cinema! This movie deserves all the acclaim it receives. 
-                    Every aspect from direction to acting is executed flawlessly.
-                  </p>
-                </div>
-              </div>
+              <ReviewsSection imdbId={movie.imdbID} movieTitle={movie.Title} />
             </section>
           </div>
 

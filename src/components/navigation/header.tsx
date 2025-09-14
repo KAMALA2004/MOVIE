@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Search, User, Heart, Menu, Film } from "lucide-react";
+import { Search, User, Heart, Menu, Film, Plus, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -128,6 +128,19 @@ export const Header: React.FC = () => {
                     <Heart className="h-4 w-4 mr-2" />
                     Watchlist
                   </DropdownMenuItem>
+                  {user.is_admin && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => navigate('/admin/add-movie')}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Movie
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => navigate('/admin')}>
+                        <Settings className="h-4 w-4 mr-2" />
+                        Admin Panel
+                      </DropdownMenuItem>
+                    </>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout}>
                     Logout

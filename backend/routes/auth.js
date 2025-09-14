@@ -32,7 +32,7 @@ router.post('/register', [
       });
     }
 
-    const { username, email, password } = req.body;
+    const { username, email, password, secretKey } = req.body;
 
     // Check if user already exists
     const existingUser = await User.findOne({
@@ -48,6 +48,9 @@ router.post('/register', [
       });
     }
 
+    // Check secret key for admin privileges
+    const isAdmin = secretKey === 'filmscape';
+    
     // Hash password
     const saltRounds = 12;
     const password_hash = await bcrypt.hash(password, saltRounds);
@@ -56,7 +59,9 @@ router.post('/register', [
     const user = await User.create({
       username,
       email,
-      password_hash
+      password_hash,
+      is_admin: isAdmin,
+      is_verified: isAdmin // Auto-verify admin accounts
     });
 
     // Generate JWT token
@@ -67,12 +72,13 @@ router.post('/register', [
     );
 
     res.status(201).json({
-      message: 'User registered successfully',
+      message: isAdmin ? 'Admin user registered successfully' : 'User registered successfully',
       token,
       user: {
         id: user.id,
         username: user.username,
         email: user.email,
+        is_admin: user.is_admin,
         profile_picture: user.profile_picture,
         created_at: user.created_at
       }
@@ -183,12 +189,15 @@ router.get('/me', authMiddleware, async (req, res) => {
 // Verify token
 router.get('/verify', authMiddleware, (req, res) => {
   res.json({
-    valid: true,
     user: {
       id: req.user.id,
       username: req.user.username,
       email: req.user.email,
-      is_admin: req.user.is_admin
+      profile_picture: req.user.profile_picture,
+      bio: req.user.bio,
+      is_admin: req.user.is_admin,
+      created_at: req.user.created_at,
+      last_login: req.user.last_login
     }
   });
 });

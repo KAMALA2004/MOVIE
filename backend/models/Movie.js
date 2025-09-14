@@ -12,7 +12,7 @@ module.exports = (sequelize) => {
       allowNull: false,
       unique: true,
       validate: {
-        is: /^tt\d{7,8}$/
+        is: /^tt\d{6,8}$/
       }
     },
     title: {
@@ -21,7 +21,7 @@ module.exports = (sequelize) => {
     },
     year: {
       type: DataTypes.INTEGER,
-      allowNull: false,
+      allowNull: true,
       validate: {
         min: 1888,
         max: new Date().getFullYear() + 5

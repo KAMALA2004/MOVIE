@@ -2,7 +2,7 @@ const express = require('express');
 const { Op } = require('sequelize');
 const { body, query, validationResult } = require('express-validator');
 const { Movie, Review, User } = require('../models');
-const { adminMiddleware } = require('../middleware/auth');
+const { authMiddleware, adminMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -45,13 +45,13 @@ router.get('/', [
     
     if (search) {
       whereClause.title = {
-        [Op.iLike]: `%${search}%`
+        [Op.like]: `%${search}%`
       };
     }
     
     if (genre) {
       whereClause.genre = {
-        [Op.iLike]: `%${genre}%`
+        [Op.like]: `%${genre}%`
       };
     }
     
@@ -70,22 +70,8 @@ router.get('/', [
       where: whereClause,
       order: [[sort_by, sort_order]],
       limit: parseInt(limit),
-      offset: parseInt(offset),
-      include: [
-        {
-          model: Review,
-          as: 'reviews',
-          limit: 3,
-          include: [
-            {
-              model: User,
-              as: 'user',
-              attributes: ['id', 'username', 'profile_picture']
-            }
-          ],
-          order: [['created_at', 'DESC']]
-        }
-      ]
+
+      offset: parseInt(offset)
     });
 
     const totalPages = Math.ceil(count / limit);
@@ -103,9 +89,12 @@ router.get('/', [
     });
   } catch (error) {
     console.error('Get movies error:', error);
+    console.error('Error details:', error.message);
+    console.error('Stack trace:', error.stack);
     res.status(500).json({
       error: 'Failed to fetch movies',
-      message: 'Unable to retrieve movies'
+      message: 'Unable to retrieve movies',
+      details: error.message
     });
   }
 });
@@ -186,11 +175,19 @@ router.get('/imdb/:imdbId', async (req, res) => {
 });
 
 // Add new movie (admin only)
-router.post('/', adminMiddleware, [
-  body('imdb_id').matches(/^tt\d{7,8}$/).withMessage('Invalid IMDb ID format'),
+router.post('/', authMiddleware, adminMiddleware, [
+  body('imdb_id').matches(/^tt\d{6,8}$/).withMessage('Invalid IMDb ID format'),
   body('title').notEmpty().withMessage('Title is required'),
-  body('year').isInt({ min: 1888, max: new Date().getFullYear() + 5 }).withMessage('Invalid year'),
-  body('imdb_rating').optional().isFloat({ min: 0, max: 10 }).withMessage('IMDb rating must be between 0 and 10')
+  body('year').optional().custom((value) => {
+    if (value === null || value === undefined || value === '') return true;
+    const num = parseInt(value);
+    return !isNaN(num) && num >= 1888 && num <= new Date().getFullYear() + 5;
+  }).withMessage('Invalid year'),
+  body('imdb_rating').optional().custom((value) => {
+    if (value === null || value === undefined || value === '') return true;
+    const num = parseFloat(value);
+    return !isNaN(num) && num >= 0 && num <= 10;
+  }).withMessage('IMDb rating must be between 0 and 10')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -230,7 +227,7 @@ router.post('/', adminMiddleware, [
 });
 
 // Update movie (admin only)
-router.put('/:id', adminMiddleware, [
+router.put('/:id', authMiddleware, adminMiddleware, [
   body('title').optional().notEmpty().withMessage('Title cannot be empty'),
   body('year').optional().isInt({ min: 1888, max: new Date().getFullYear() + 5 }).withMessage('Invalid year'),
   body('imdb_rating').optional().isFloat({ min: 0, max: 10 }).withMessage('IMDb rating must be between 0 and 10')
@@ -269,7 +266,7 @@ router.put('/:id', adminMiddleware, [
 });
 
 // Delete movie (admin only)
-router.delete('/:id', adminMiddleware, async (req, res) => {
+router.delete('/:id', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const movie = await Movie.findByPk(req.params.id);
     if (!movie) {

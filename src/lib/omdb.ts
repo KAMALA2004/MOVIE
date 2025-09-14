@@ -54,6 +54,42 @@ export const getTrendingMovies = async (timeWindow: 'day' | 'week' = 'day'): Pro
   return { results: data.Search || [] };
 };
 
+// Get trending movies filtered by specific genres
+export const getTrendingMoviesByGenre = async (genres: string[] = ['Action', 'Adventure', 'Animation', 'Comedy']): Promise<{ results: Movie[] }> => {
+  try {
+    // Search for movies from each genre and combine results
+    const genrePromises = genres.map(async (genre) => {
+      try {
+        const data = await fetchFromOMDb<OMDbSearchResponse>({
+          s: genre.toLowerCase(),
+          type: 'movie',
+          page: '1'
+        });
+        return data.Search || [];
+      } catch (error) {
+        console.warn(`Failed to fetch movies for genre ${genre}:`, error);
+        return [];
+      }
+    });
+
+    const genreResults = await Promise.all(genrePromises);
+    
+    // Flatten and deduplicate results
+    const allMovies = genreResults.flat();
+    const uniqueMovies = allMovies.filter((movie, index, self) => 
+      index === self.findIndex(m => m.imdbID === movie.imdbID)
+    );
+
+    // Shuffle and limit to 20 movies for better variety
+    const shuffled = uniqueMovies.sort(() => Math.random() - 0.5);
+    
+    return { results: shuffled.slice(0, 20) };
+  } catch (error) {
+    console.error('Error fetching trending movies by genre:', error);
+    return { results: [] };
+  }
+};
+
 // Get popular movies (using search with popular terms)
 export const getPopularMovies = async (page: number = 1): Promise<{ results: Movie[] }> => {
   const popularTerms = ['2023', '2024', 'marvel', 'disney', 'netflix'];
@@ -139,8 +175,53 @@ export const getMovieVideos = async (movieId: string): Promise<{ results: MovieV
   return { results: [] };
 };
 
-// Search movies
-export const searchMovies = async (query: string, page: number = 1): Promise<{ results: Movie[] }> => {
+// Search local movies from database
+export const searchLocalMovies = async (query: string, page: number = 1): Promise<{ results: Movie[] }> => {
+  try {
+    const response = await fetch(`http://localhost:8080/api/movies?search=${encodeURIComponent(query)}&page=${page}&limit=20`);
+    
+    if (!response.ok) {
+      console.error('Local search failed:', response.status);
+      return { results: [] };
+    }
+    
+    const data = await response.json();
+    
+    // Convert local movie format to frontend Movie format
+    const movies = data.movies.map((movie: any) => ({
+      imdbID: movie.imdb_id,
+      Title: movie.title,
+      Year: movie.year?.toString() || 'N/A',
+      Rated: movie.rated || 'N/A',
+      Released: movie.released || 'N/A',
+      Runtime: movie.runtime || 'N/A',
+      Genre: movie.genre || 'N/A',
+      Director: movie.director || 'N/A',
+      Writer: movie.writer || 'N/A',
+      Actors: movie.actors || 'N/A',
+      Plot: movie.plot || 'N/A',
+      Language: movie.language || 'N/A',
+      Country: movie.country || 'N/A',
+      Awards: movie.awards || 'N/A',
+      Poster: movie.poster || '/placeholder-movie.jpg',
+      imdbRating: movie.imdb_rating?.toString() || 'N/A',
+      imdbVotes: movie.imdb_votes || 'N/A',
+      Type: movie.type || 'movie',
+      BoxOffice: movie.box_office || 'N/A',
+      Production: movie.production || 'N/A',
+      Website: movie.website || 'N/A',
+      Response: 'True'
+    }));
+    
+    return { results: movies };
+  } catch (error) {
+    console.error('Local search error:', error);
+    return { results: [] };
+  }
+};
+
+// Search external movies from OMDb
+export const searchExternalMovies = async (query: string, page: number = 1): Promise<{ results: Movie[] }> => {
   const data = await fetchFromOMDb<OMDbSearchResponse>({
     s: query,
     type: 'movie',
@@ -148,6 +229,45 @@ export const searchMovies = async (query: string, page: number = 1): Promise<{ r
   });
   
   return { results: data.Search || [] };
+};
+
+// Search movies (both local and external)
+export const searchMovies = async (query: string, page: number = 1): Promise<{ results: Movie[] }> => {
+  try {
+    // Search both local and external movies in parallel
+    const [localResults, externalResults] = await Promise.allSettled([
+      searchLocalMovies(query, page),
+      searchExternalMovies(query, page).catch(error => {
+        if (error.message.includes('OMDb API error: Movie not found!')) {
+          console.warn('OMDb API: Movie not found for query:', query);
+          return { results: [] }; // Return empty results for this specific error
+        }
+        console.error('OMDb API error:', error);
+        return { results: [] }; // Return empty results for other OMDb errors
+      })
+    ]);
+    
+    // Extract results from settled promises
+    const localMovies = localResults.status === 'fulfilled' ? localResults.value.results : [];
+    const externalMovies = externalResults.status === 'fulfilled' ? externalResults.value.results : [];
+    
+    // Combine results, prioritizing local movies first
+    const combinedResults = [...localMovies, ...externalMovies];
+    
+    console.log(`Search for "${query}": Found ${localMovies.length} local + ${externalMovies.length} external = ${combinedResults.length} total movies`);
+    
+    return { results: combinedResults };
+  } catch (error) {
+    console.error('General search error:', error);
+    // Fallback to local search only
+    try {
+      const localResults = await searchLocalMovies(query, page);
+      return localResults;
+    } catch (localError) {
+      console.error('Local search also failed:', localError);
+      return { results: [] };
+    }
+  }
 };
 
 // Discover movies with filters (OMDb has limited filtering)

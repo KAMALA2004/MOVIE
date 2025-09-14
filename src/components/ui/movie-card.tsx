@@ -1,10 +1,11 @@
 import * as React from "react";
-import { Heart, Play, Star } from "lucide-react";
+import { Play, Star } from "lucide-react";
 import { Movie } from "@/types/movie";
 import { getImageUrl } from "@/lib/omdb";
 import { cn } from "@/lib/utils";
 import { Button } from "./button";
 import { Badge } from "./badge";
+import { WatchlistButton } from "./watchlist-button";
 
 interface MovieCardProps {
   movie: Movie;
@@ -12,8 +13,6 @@ interface MovieCardProps {
   showOverlay?: boolean;
   className?: string;
   onClick?: () => void;
-  onWatchlistToggle?: (movieId: string) => void;
-  isInWatchlist?: boolean;
 }
 
 const MovieCard = React.forwardRef<HTMLDivElement, MovieCardProps>(
@@ -22,9 +21,7 @@ const MovieCard = React.forwardRef<HTMLDivElement, MovieCardProps>(
     size = "md", 
     showOverlay = true, 
     className, 
-    onClick,
-    onWatchlistToggle,
-    isInWatchlist = false
+    onClick
   }, ref) => {
     const sizeClasses = {
       sm: "w-32",
@@ -32,10 +29,6 @@ const MovieCard = React.forwardRef<HTMLDivElement, MovieCardProps>(
       lg: "w-64"
     };
 
-    const handleWatchlistClick = (e: React.MouseEvent) => {
-      e.stopPropagation();
-      onWatchlistToggle?.(movie.imdbID);
-    };
 
     return (
       <div
@@ -67,19 +60,15 @@ const MovieCard = React.forwardRef<HTMLDivElement, MovieCardProps>(
                       {movie.imdbRating}
                     </span>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleWatchlistClick}
-                    className="h-8 w-8 p-0 hover:bg-white/20"
-                  >
-                    <Heart 
-                      className={cn(
-                        "h-4 w-4",
-                        isInWatchlist ? "fill-red-500 text-red-500" : "text-white"
-                      )} 
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <WatchlistButton
+                      imdbId={movie.imdbID}
+                      movieTitle={movie.Title}
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 hover:bg-white/20 text-white hover:text-white"
                     />
-                  </Button>
+                  </div>
                 </div>
                 
                 <h3 className="text-white font-semibold text-sm line-clamp-2 mb-2">

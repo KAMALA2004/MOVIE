@@ -13,6 +13,8 @@ const PORT = process.env.PORT || 8080;
 const movieRoutes = require('./routes/movies');
 const userRoutes = require('./routes/users');
 const reviewRoutes = require('./routes/reviews');
+const publicReviewRoutes = require('./routes/public-reviews');
+const watchlistRoutes = require('./routes/watchlist');
 const authRoutes = require('./routes/auth');
 
 // Import middleware
@@ -60,7 +62,9 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/movies', movieRoutes);
 app.use('/api/users', authMiddleware, userRoutes);
-app.use('/api/reviews', authMiddleware, reviewRoutes);
+app.use('/api/reviews', publicReviewRoutes); // Public review endpoints
+app.use('/api/reviews', authMiddleware, reviewRoutes); // Protected review endpoints
+app.use('/api/watchlist', authMiddleware, watchlistRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

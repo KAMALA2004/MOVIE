@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getTrendingMovies, getPopularMovies, getTopRatedMovies, mockMovies, getImageUrl } from "@/lib/omdb";
+import { getTrendingMovies, getTrendingMoviesByGenre, getPopularMovies, getTopRatedMovies, mockMovies, getImageUrl } from "@/lib/omdb";
 import { HeroSection } from "@/components/sections/hero-section";
 import { MovieGrid } from "@/components/sections/movie-grid";
 import { Button } from "@/components/ui/button";
@@ -12,10 +12,10 @@ const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Fetch trending movies for hero
+  // Fetch trending movies for hero (filtered by specific genres)
   const { data: trendingData, isLoading: trendingLoading, error: trendingError } = useQuery({
-    queryKey: ['trending-movies'],
-    queryFn: () => getTrendingMovies('day'),
+    queryKey: ['trending-movies-genre'],
+    queryFn: () => getTrendingMoviesByGenre(['Action', 'Adventure', 'Animation', 'Comedy']),
     staleTime: 1000 * 60 * 30, // 30 minutes
     retry: false,
   });
@@ -27,18 +27,18 @@ const HomePage: React.FC = () => {
     console.log('Trending error:', trendingError);
   }, [trendingData, trendingLoading, trendingError]);
 
-  // Fetch popular movies
+  // Fetch popular movies (also filtered by genres)
   const { data: popularData, isLoading: popularLoading } = useQuery({
-    queryKey: ['popular-movies'],
-    queryFn: () => getPopularMovies(),
+    queryKey: ['popular-movies-genre'],
+    queryFn: () => getTrendingMoviesByGenre(['Action', 'Adventure', 'Animation', 'Comedy']),
     staleTime: 1000 * 60 * 30,
     retry: false,
   });
 
-  // Fetch top rated movies
+  // Fetch top rated movies (also filtered by genres)
   const { data: topRatedData, isLoading: topRatedLoading } = useQuery({
-    queryKey: ['top-rated-movies'],
-    queryFn: () => getTopRatedMovies(),
+    queryKey: ['top-rated-movies-genre'],
+    queryFn: () => getTrendingMoviesByGenre(['Action', 'Adventure', 'Animation', 'Comedy']),
     staleTime: 1000 * 60 * 30,
     retry: false,
   });
@@ -62,7 +62,7 @@ const HomePage: React.FC = () => {
     });
   };
 
-  const handleWatchlistToggle = (movieId: number) => {
+  const handleWatchlistToggle = (movieId: string) => {
     toast({
       title: "Sign In Required",
       description: "Please sign in to manage your watchlist.",
@@ -132,7 +132,7 @@ const HomePage: React.FC = () => {
                     size="lg"
                     onClick={() => navigate('/movies?category=popular')}
                   >
-                    View All Popular Movies
+                    View All Popular Movies (Action, Adventure, Animation & Comedy)
                   </Button>
                 </div>
               )}
@@ -169,7 +169,7 @@ const HomePage: React.FC = () => {
                     size="lg"
                     onClick={() => navigate('/movies?category=top-rated')}
                   >
-                    View All Top Rated Movies
+                    View All Top Rated Movies (Action, Adventure, Animation & Comedy)
                   </Button>
                 </div>
               )}

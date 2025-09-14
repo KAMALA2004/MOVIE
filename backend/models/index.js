@@ -26,6 +26,14 @@ Review.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
 Movie.hasMany(Review, { foreignKey: 'movie_id', as: 'reviews' });
 Review.belongsTo(Movie, { foreignKey: 'movie_id', as: 'movie' });
 
+// Watchlist associations
+User.hasMany(Watchlist, { foreignKey: 'user_id', as: 'watchlist' });
+Watchlist.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
+
+Movie.hasMany(Watchlist, { foreignKey: 'movie_id', as: 'watchlist' });
+Watchlist.belongsTo(Movie, { foreignKey: 'movie_id', as: 'movie' });
+
+// Many-to-many associations through Watchlist
 User.belongsToMany(Movie, { 
   through: Watchlist, 
   foreignKey: 'user_id', 
