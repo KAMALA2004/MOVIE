@@ -1,6 +1,4 @@
 import { Movie, MovieDetails, OMDbSearchResponse, MovieCredits, MovieVideo } from '@/types/movie';
-import { db } from '@/lib/firebase';
-import { collection, getDocs, orderBy, query } from 'firebase/firestore';
 
 // OMDb API configuration
 const OMDB_BASE_URL = 'https://www.omdbapi.com/';
@@ -180,18 +178,18 @@ export const getMovieVideos = async (movieId: string): Promise<{ results: MovieV
 // Search local movies from database
 export const searchLocalMovies = async (text: string, page: number = 1): Promise<{ results: Movie[] }> => {
   try {
-    const col = collection(db, 'movies');
-    const q = query(col, orderBy('title'));
-    const snap = await getDocs(q);
+    const raw = localStorage.getItem('adminMovies');
+    const items: any[] = raw ? JSON.parse(raw) : [];
     const lc = text.trim().toLowerCase();
-    const all: Movie[] = [];
-    snap.forEach((d) => {
-      const m: any = d.data();
-      const title = (m.title || '').toLowerCase();
-      const imdbId = (m.imdb_id || d.id || '').toLowerCase();
-      if (lc && !(title.includes(lc) || imdbId.includes(lc))) return;
-      const movie: Movie = {
-        imdbID: m.imdb_id || d.id,
+    const all: Movie[] = items
+      .filter((m) => {
+        const title = (m.title || '').toLowerCase();
+        const imdbId = (m.imdb_id || '').toLowerCase();
+        if (!lc) return true;
+        return title.includes(lc) || imdbId.includes(lc);
+      })
+      .map((m) => ({
+        imdbID: m.imdb_id,
         Title: m.title || 'Untitled',
         Year: m.year ? String(m.year) : 'N/A',
         Rated: m.rated || 'N/A',
@@ -216,16 +214,14 @@ export const searchLocalMovies = async (text: string, page: number = 1): Promise
         Production: m.production || 'N/A',
         Website: m.website || 'N/A',
         Response: 'True',
-      };
-      all.push(movie);
-    });
+      }));
     // Simple pagination client-side (20 per page)
     const pageSize = 20;
     const start = (page - 1) * pageSize;
     const results = all.slice(start, start + pageSize);
     return { results };
   } catch (error) {
-    console.error('Local search (Firestore) error:', error);
+    console.error('Local search (localStorage) error:', error);
     return { results: [] };
   }
 };

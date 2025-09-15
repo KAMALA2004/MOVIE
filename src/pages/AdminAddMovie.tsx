@@ -8,8 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { db } from '@/lib/firebase';
-import { doc, setDoc } from 'firebase/firestore';
+// Firestore removed. Admin-added movies are stored locally in localStorage.
 
 interface MovieFormData {
   imdb_id: string;
@@ -119,7 +118,16 @@ export const AdminAddMovie: React.FC = () => {
         website: formData.website.trim() || null,
       };
 
-      await setDoc(doc(db, 'movies', cleanedData.imdb_id), cleanedData, { merge: true });
+      // Persist to localStorage under 'adminMovies' (upsert by imdb_id)
+      const raw = localStorage.getItem('adminMovies');
+      const list = raw ? JSON.parse(raw) : [];
+      const idx = list.findIndex((m: any) => (m.imdb_id || '').toLowerCase() === cleanedData.imdb_id.toLowerCase());
+      if (idx >= 0) {
+        list[idx] = { ...list[idx], ...cleanedData };
+      } else {
+        list.push(cleanedData);
+      }
+      localStorage.setItem('adminMovies', JSON.stringify(list));
 
       toast({
         title: 'Movie Added Successfully!',
