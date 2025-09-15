@@ -8,6 +8,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { db } from '@/lib/firebase';
+import { doc, setDoc } from 'firebase/firestore';
 
 interface MovieFormData {
   imdb_id: string;
@@ -55,7 +57,7 @@ export const AdminAddMovie: React.FC = () => {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
 
   // Redirect if not admin
@@ -80,7 +82,7 @@ export const AdminAddMovie: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!token) return;
+    if (!user) return;
 
     // Validate required fields
     if (!formData.title.trim() || !formData.imdb_id.trim()) {
@@ -103,7 +105,7 @@ export const AdminAddMovie: React.FC = () => {
         director: formData.director.trim() || null,
         plot: formData.plot.trim() || null,
         poster: formData.poster.trim() || null,
-        imdb_rating: formData.imdb_rating && formData.imdb_rating > 0 ? parseFloat(formData.imdb_rating) : null,
+        imdb_rating: formData.imdb_rating && formData.imdb_rating > 0 ? Number(formData.imdb_rating) : null,
         runtime: formData.runtime.trim() || null,
         rated: formData.rated.trim() || null,
         released: formData.released.trim() || null,
@@ -117,25 +119,7 @@ export const AdminAddMovie: React.FC = () => {
         website: formData.website.trim() || null,
       };
 
-      console.log('Sending data:', cleanedData);
-      console.log('Sending data JSON:', JSON.stringify(cleanedData));
-
-      const response = await fetch('http://localhost:8080/api/movies', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(cleanedData),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('API Error:', errorData);
-        console.error('API Error Details:', errorData.details);
-        console.error('Form Data:', formData);
-        throw new Error(errorData.message || 'Failed to add movie');
-      }
+      await setDoc(doc(db, 'movies', cleanedData.imdb_id), cleanedData, { merge: true });
 
       toast({
         title: 'Movie Added Successfully!',

@@ -1,3 +1,4 @@
+// Demo Mode: use localStorage for reviews persistence
 import React, { useState, useEffect } from 'react';
 import { Star, MessageSquare, Plus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -5,6 +6,7 @@ import { ReviewCard } from './review-card';
 import { ReviewForm } from './review-form';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+// no firestore imports in demo mode
 
 interface Review {
   id: string;
@@ -40,29 +42,21 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
     has_next: false,
     has_prev: false,
   });
-  const { user, token, isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const { toast } = useToast();
 
+  const storageKey = (imdb: string) => `reviews:${imdb}`;
   const fetchReviews = async (page = 1) => {
     try {
-      const response = await fetch(
-        `http://localhost:8080/api/reviews/movies/${imdbId}?page=${page}&limit=10`
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch reviews');
-      }
-
-      const data = await response.json();
-      setReviews(data.reviews);
-      setPagination(data.pagination);
+      const raw = localStorage.getItem(storageKey(imdbId));
+      const list: Review[] = raw ? JSON.parse(raw) : [];
+      // Sort newest first without requiring a Firestore composite index
+      const sorted = list.sort((a, b) => (a.created_at > b.created_at ? -1 : 1));
+      setReviews(sorted);
+      setPagination({ current_page: 1, total_pages: 1, total_reviews: list.length, has_next: false, has_prev: false });
     } catch (error) {
       console.error('Error fetching reviews:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load reviews',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: 'Failed to load reviews', variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }
@@ -80,28 +74,10 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({
   };
 
   const handleDeleteReview = async (reviewId: string) => {
-    if (!token) return;
-
-    try {
-      const response = await fetch(`http://localhost:8080/api/reviews/${reviewId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete review');
-      }
-
-      setReviews(reviews.filter(review => review.id !== reviewId));
-      setPagination(prev => ({
-        ...prev,
-        total_reviews: prev.total_reviews - 1,
-      }));
-    } catch (error) {
-      throw error;
-    }
+    const next = reviews.filter(review => review.id !== reviewId);
+    setReviews(next);
+    setPagination(prev => ({ ...prev, total_reviews: Math.max(0, prev.total_reviews - 1) }));
+    localStorage.setItem(storageKey(imdbId), JSON.stringify(next));
   };
 
   const handlePageChange = (newPage: number) => {

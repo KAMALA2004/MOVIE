@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+// Demo Mode: use localStorage for reviews persistence
 
 interface ReviewFormProps {
   imdbId: string;
@@ -31,13 +32,13 @@ export const ReviewForm: React.FC<ReviewFormProps> = ({
   const [reviewText, setReviewText] = useState(existingReview?.review_text || '');
   const [isSpoiler, setIsSpoiler] = useState(existingReview?.is_spoiler || false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { user, token, isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!isAuthenticated || !token) {
+    if (!isAuthenticated || !user) {
       toast({
         title: 'Authentication Required',
         description: 'Please sign in to submit a review.',
@@ -58,29 +59,21 @@ export const ReviewForm: React.FC<ReviewFormProps> = ({
     setIsSubmitting(true);
 
     try {
-      const url = existingReview 
-        ? `http://localhost:8080/api/reviews/${existingReview.id}`
-        : `http://localhost:8080/api/reviews/movies/${imdbId}`;
-      
-      const method = existingReview ? 'PUT' : 'POST';
-
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          rating,
-          review_text: reviewText.trim() || undefined,
-          is_spoiler: isSpoiler,
-        }),
+      const reviewId = `${imdbId}_${user.id}`;
+      const now = new Date().toISOString();
+      const key = `reviews:${imdbId}`;
+      const raw = localStorage.getItem(key);
+      const list: any[] = raw ? JSON.parse(raw) : [];
+      const next = list.filter((r) => r.id !== reviewId);
+      next.push({
+        id: reviewId,
+        rating,
+        review_text: reviewText.trim() || null,
+        is_spoiler: isSpoiler,
+        created_at: existingReview ? existingReview.created_at : now,
+        user: { id: user.id, username: user.username || user.email },
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to submit review');
-      }
+      localStorage.setItem(key, JSON.stringify(next));
 
       toast({
         title: existingReview ? 'Review Updated' : 'Review Submitted',

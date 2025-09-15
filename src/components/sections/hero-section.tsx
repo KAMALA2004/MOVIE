@@ -4,18 +4,17 @@ import { Movie } from "@/types/movie";
 import { getImageUrl } from "@/lib/omdb";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { WatchlistButton } from "@/components/ui/watchlist-button";
 
 interface HeroSectionProps {
   movie: Movie;
   onWatchTrailer?: () => void;
-  onAddToWatchlist?: () => void;
   className?: string;
 }
 
 export const HeroSection: React.FC<HeroSectionProps> = ({
   movie,
   onWatchTrailer,
-  onAddToWatchlist,
   className
 }) => {
   return (
@@ -73,15 +72,13 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
               Watch Trailer
             </Button>
             
-            <Button 
-              variant="outline" 
+            <WatchlistButton
+              imdbId={movie.imdbID}
+              movieTitle={movie.Title}
+              variant="outline"
               size="lg"
               className="bg-background/20 border-border hover:bg-background/30"
-              onClick={onAddToWatchlist}
-            >
-              <Plus className="h-5 w-5 mr-2" />
-              Add to Watchlist
-            </Button>
+            />
           </div>
         </div>
       </div>

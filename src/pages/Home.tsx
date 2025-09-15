@@ -55,12 +55,6 @@ const HomePage: React.FC = () => {
     });
   };
 
-  const handleAddToWatchlist = () => {
-    toast({
-      title: "Sign In Required",
-      description: "Please sign in to add movies to your watchlist.",
-    });
-  };
 
   const handleWatchlistToggle = (movieId: string) => {
     toast({
@@ -76,7 +70,6 @@ const HomePage: React.FC = () => {
         <HeroSection
           movie={heroMovie}
           onWatchTrailer={handleWatchTrailer}
-          onAddToWatchlist={handleAddToWatchlist}
         />
       )}
 

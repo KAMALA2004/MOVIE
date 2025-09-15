@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useReducer, useCallback } from 'react';
+import { API_BASE_URL } from '@/lib/api';
 import { Movie } from '@/types/movie';
 
 interface Review {
@@ -127,7 +128,7 @@ const movieReducer = (state: MovieState, action: MovieAction): MovieState => {
 
 const MovieContext = createContext<MovieContextType | undefined>(undefined);
 
-const API_BASE_URL = 'http://localhost:3001/api';
+// Use centralized API base URL (configured via VITE_API_BASE_URL)
 
 export const MovieProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(movieReducer, initialState);

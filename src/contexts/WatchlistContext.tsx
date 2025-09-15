@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import { useAuth } from './AuthContext';
+// Demo Mode: localStorage-based persistence
+import { getMovieDetails } from '@/lib/omdb';
 
 interface WatchlistItem {
   id: string;
@@ -111,44 +113,24 @@ const watchlistReducer = (state: WatchlistState, action: WatchlistAction): Watch
 
 const WatchlistContext = createContext<WatchlistContextType | undefined>(undefined);
 
-const API_BASE_URL = 'http://localhost:8080/api';
+// Firestore-based watchlist; no backend API needed
 
 export const WatchlistProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(watchlistReducer, initialState);
-  const { user, token, isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
+
+  const storageKey = (uid: string) => `watchlist:${uid}`;
 
   const fetchWatchlist = async (page = 1, status?: string) => {
-    if (!isAuthenticated || !token) return;
-
+    if (!isAuthenticated || !user) return;
     dispatch({ type: 'WATCHLIST_START' });
-
     try {
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: '20',
-      });
-      if (status) params.append('status', status);
-
-      const response = await fetch(`${API_BASE_URL}/watchlist?${params}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch watchlist');
-      }
-
-      const data = await response.json();
-      dispatch({
-        type: 'WATCHLIST_SUCCESS',
-        payload: { items: data.watchlist, pagination: data.pagination },
-      });
+      const raw = localStorage.getItem(storageKey(user.id));
+      const list: WatchlistItem[] = raw ? JSON.parse(raw) : [];
+      const items = status ? list.filter(i => i.status === status) : list;
+      dispatch({ type: 'WATCHLIST_SUCCESS', payload: { items, pagination: null } });
     } catch (error) {
-      dispatch({
-        type: 'WATCHLIST_FAILURE',
-        payload: error instanceof Error ? error.message : 'Failed to fetch watchlist',
-      });
+      dispatch({ type: 'WATCHLIST_FAILURE', payload: error instanceof Error ? error.message : 'Failed to fetch watchlist' });
     }
   };
 
@@ -158,109 +140,74 @@ export const WatchlistProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     notes?: string,
     priority = 0
   ) => {
-    if (!isAuthenticated || !token) {
-      throw new Error('User not authenticated');
-    }
-
+    if (!isAuthenticated || !user) throw new Error('User not authenticated');
+    const now = new Date().toISOString();
+    // Optimistic UI: update first, then persist to localStorage
+    // Try to enrich with movie details for watchlist rendering
+    let movieTitle = '';
+    let movieYear: number = new Date().getFullYear();
+    let moviePoster: string | undefined = undefined;
+    let imdbRating: number | undefined = undefined;
     try {
-      const response = await fetch(`${API_BASE_URL}/watchlist/add`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          imdb_id: imdbId,
-          status,
-          notes,
-          priority,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to add to watchlist');
-      }
-
-      const data = await response.json();
-      dispatch({ type: 'ADD_ITEM', payload: data.watchlistItem });
-    } catch (error) {
-      throw error;
+      const details = await getMovieDetails(imdbId);
+      movieTitle = details.Title || '';
+      movieYear = parseInt(details.Year) || movieYear;
+      moviePoster = details.Poster && details.Poster !== 'N/A' ? details.Poster : undefined;
+      imdbRating = details.imdbRating ? parseFloat(details.imdbRating) : undefined;
+    } catch (_) {
+      // ignore fetch failures; we'll store minimal data
     }
+    const newItem: WatchlistItem = {
+      id: imdbId,
+      user_id: user.id,
+      movie_id: imdbId,
+      status,
+      notes: notes || undefined,
+      priority: priority ?? 0,
+      created_at: now,
+      updated_at: now,
+      movie: {
+        id: imdbId,
+        title: movieTitle || imdbId,
+        year: movieYear,
+        poster: moviePoster,
+        imdb_rating: imdbRating,
+      },
+    } as any;
+    dispatch({ type: 'ADD_ITEM', payload: newItem });
+    const raw = localStorage.getItem(storageKey(user.id));
+    const list: WatchlistItem[] = raw ? JSON.parse(raw) : [];
+    const next = [newItem, ...list.filter(i => i.id !== imdbId)];
+    localStorage.setItem(storageKey(user.id), JSON.stringify(next));
   };
 
   const removeFromWatchlist = async (itemId: string) => {
-    if (!isAuthenticated || !token) {
-      throw new Error('User not authenticated');
-    }
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/watchlist/${itemId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to remove from watchlist');
-      }
-
-      dispatch({ type: 'REMOVE_ITEM', payload: itemId });
-    } catch (error) {
-      throw error;
-    }
+    if (!isAuthenticated || !user) throw new Error('User not authenticated');
+    const raw = localStorage.getItem(storageKey(user.id));
+    const list: WatchlistItem[] = raw ? JSON.parse(raw) : [];
+    const next = list.filter(i => i.id !== itemId);
+    localStorage.setItem(storageKey(user.id), JSON.stringify(next));
+    dispatch({ type: 'REMOVE_ITEM', payload: itemId });
   };
 
   const updateWatchlistItem = async (itemId: string, updates: Partial<WatchlistItem>) => {
-    if (!isAuthenticated || !token) {
-      throw new Error('User not authenticated');
-    }
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/watchlist/${itemId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(updates),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to update watchlist item');
-      }
-
-      const data = await response.json();
-      dispatch({ type: 'UPDATE_ITEM', payload: data.watchlistItem });
-    } catch (error) {
-      throw error;
-    }
+    if (!isAuthenticated || !user) throw new Error('User not authenticated');
+    const now = new Date().toISOString();
+    const existing = state.items.find(i => i.id === itemId);
+    const updated: WatchlistItem = { ...(existing as WatchlistItem), ...(updates as any), updated_at: now };
+    const raw = localStorage.getItem(storageKey(user.id));
+    const list: WatchlistItem[] = raw ? JSON.parse(raw) : [];
+    const next = list.map(i => (i.id === itemId ? updated : i));
+    localStorage.setItem(storageKey(user.id), JSON.stringify(next));
+    dispatch({ type: 'UPDATE_ITEM', payload: updated });
   };
 
   const checkInWatchlist = async (imdbId: string) => {
-    if (!isAuthenticated || !token) {
-      return { inWatchlist: false, watchlistItem: null };
-    }
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/watchlist/check/${imdbId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        return { inWatchlist: false, watchlistItem: null };
-      }
-
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      return { inWatchlist: false, watchlistItem: null };
-    }
+    if (!isAuthenticated || !user) return { inWatchlist: false, watchlistItem: null };
+    const raw = localStorage.getItem(storageKey(user.id));
+    const list: WatchlistItem[] = raw ? JSON.parse(raw) : [];
+    const item = list.find(i => i.id === imdbId) || null;
+    return { inWatchlist: Boolean(item), watchlistItem: item };
   };
 
   const clearError = () => {

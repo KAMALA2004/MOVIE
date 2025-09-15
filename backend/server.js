@@ -25,11 +25,25 @@ const { authMiddleware } = require('./middleware/auth');
 app.use(helmet());
 app.use(compression());
 
-// CORS configuration
-app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
-  credentials: true
-}));
+// CORS configuration with support for wildcard or comma-separated origins
+const configuredOrigins = (process.env.CORS_ORIGIN || '*')
+  .split(',')
+  .map((o) => o.trim());
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow non-browser requests or same-origin without Origin header
+    if (!origin) return callback(null, true);
+    // Wildcard allows all
+    if (configuredOrigins.includes('*')) return callback(null, true);
+    // Exact match
+    if (configuredOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
 
 // Rate limiting
 const limiter = rateLimit({

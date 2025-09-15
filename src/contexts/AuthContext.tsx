@@ -1,19 +1,27 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import { auth, db } from '@/lib/firebase';
+import {
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  updateProfile as updateFirebaseProfile,
+} from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 
 interface User {
   id: string;
-  username: string;
+  username?: string;
   email: string;
   profile_picture?: string;
   bio?: string;
   is_admin: boolean;
-  created_at: string;
+  created_at?: string;
   last_login?: string;
 }
 
 interface AuthState {
   user: User | null;
-  token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
 }
@@ -21,20 +29,19 @@ interface AuthState {
 interface AuthContextType extends AuthState {
   login: (email: string, password: string) => Promise<void>;
   register: (username: string, email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<void>;
 }
 
 type AuthAction =
   | { type: 'AUTH_START' }
-  | { type: 'AUTH_SUCCESS'; payload: { user: User; token: string } }
+  | { type: 'AUTH_SUCCESS'; payload: { user: User } }
   | { type: 'AUTH_FAILURE' }
   | { type: 'LOGOUT' }
   | { type: 'UPDATE_USER'; payload: User };
 
 const initialState: AuthState = {
   user: null,
-  token: localStorage.getItem('token'),
   isAuthenticated: false,
   isLoading: true,
 };
@@ -50,7 +57,6 @@ const authReducer = (state: AuthState, action: AuthAction): AuthState => {
       return {
         ...state,
         user: action.payload.user,
-        token: action.payload.token,
         isAuthenticated: true,
         isLoading: false,
       };
@@ -58,7 +64,6 @@ const authReducer = (state: AuthState, action: AuthAction): AuthState => {
       return {
         ...state,
         user: null,
-        token: null,
         isAuthenticated: false,
         isLoading: false,
       };
@@ -66,7 +71,6 @@ const authReducer = (state: AuthState, action: AuthAction): AuthState => {
       return {
         ...state,
         user: null,
-        token: null,
         isAuthenticated: false,
         isLoading: false,
       };
@@ -82,77 +86,60 @@ const authReducer = (state: AuthState, action: AuthAction): AuthState => {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const API_BASE_URL = 'http://localhost:8080/api';
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(authReducer, initialState);
 
   // Check if user is logged in on app start
   useEffect(() => {
-    const checkAuth = async () => {
-      const token = localStorage.getItem('token');
-      if (token) {
-        try {
-          const response = await fetch(`${API_BASE_URL}/auth/verify`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-            },
-          });
-
-          if (response.ok) {
-            const data = await response.json();
-            console.log('Auth verification successful:', data);
-            dispatch({
-              type: 'AUTH_SUCCESS',
-              payload: { user: data.user, token },
-            });
-          } else {
-            console.log('Auth verification failed:', response.status, response.statusText);
-            localStorage.removeItem('token');
-            dispatch({ type: 'AUTH_FAILURE' });
-          }
-        } catch (error) {
-          console.error('Auth check failed:', error);
-          localStorage.removeItem('token');
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      try {
+        if (!firebaseUser) {
           dispatch({ type: 'AUTH_FAILURE' });
+          return;
         }
-      } else {
+        let profile: any = {};
+        try {
+          const profileDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+          profile = profileDoc.exists() ? profileDoc.data() : {};
+        } catch (e) {
+          // Ignore profile read errors (e.g., missing rules/doc); still authenticate user
+          profile = {};
+        }
+        const user: User = {
+          id: firebaseUser.uid,
+          email: firebaseUser.email || '',
+          username: profile?.username || firebaseUser.displayName || firebaseUser.email || undefined,
+          profile_picture: profile?.profile_picture || firebaseUser.photoURL || undefined,
+          bio: profile?.bio,
+          is_admin: Boolean(profile?.is_admin),
+          created_at: profile?.created_at,
+          last_login: new Date().toISOString(),
+        };
+        dispatch({ type: 'AUTH_SUCCESS', payload: { user } });
+      } catch (err) {
+        console.error('onAuthStateChanged handler error:', err);
         dispatch({ type: 'AUTH_FAILURE' });
       }
-    };
+    });
 
-    checkAuth();
+    return () => unsubscribe();
   }, []);
 
   const login = async (email: string, password: string) => {
     dispatch({ type: 'AUTH_START' });
-
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      if (!response.ok) {
-        let errorMessage = 'Login failed';
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.message || errorData.error || errorMessage;
-        } catch (parseError) {
-          errorMessage = `Server error: ${response.status} ${response.statusText}`;
-        }
-        throw new Error(errorMessage);
-      }
-
-      const data = await response.json();
-      localStorage.setItem('token', data.token);
-      dispatch({
-        type: 'AUTH_SUCCESS',
-        payload: { user: data.user, token: data.token },
-      });
+      const cred = await signInWithEmailAndPassword(auth, email, password);
+      const fbUser = cred.user;
+      const user: User = {
+        id: fbUser.uid,
+        email: fbUser.email || '',
+        username: fbUser.displayName || fbUser.email || undefined,
+        profile_picture: fbUser.photoURL || undefined,
+        is_admin: false,
+        created_at: undefined,
+        last_login: new Date().toISOString(),
+      };
+      dispatch({ type: 'AUTH_SUCCESS', payload: { user } });
     } catch (error) {
       console.error('Login error:', error);
       dispatch({ type: 'AUTH_FAILURE' });
@@ -160,35 +147,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const register = async (username: string, email: string, password: string, secretKey?: string) => {
+  const register = async (username: string, email: string, password: string) => {
     dispatch({ type: 'AUTH_START' });
-
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ username, email, password, secretKey }),
-      });
-
-      if (!response.ok) {
-        let errorMessage = 'Registration failed';
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.message || errorData.error || errorMessage;
-        } catch (parseError) {
-          errorMessage = `Server error: ${response.status} ${response.statusText}`;
-        }
-        throw new Error(errorMessage);
-      }
-
-      const data = await response.json();
-      localStorage.setItem('token', data.token);
-      dispatch({
-        type: 'AUTH_SUCCESS',
-        payload: { user: data.user, token: data.token },
-      });
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      if (username) await updateFirebaseProfile(cred.user, { displayName: username });
+      const fbUser = cred.user;
+      const user: User = {
+        id: fbUser.uid,
+        email: fbUser.email || '',
+        username: username || fbUser.email || undefined,
+        profile_picture: fbUser.photoURL || undefined,
+        is_admin: false,
+        created_at: new Date().toISOString(),
+        last_login: new Date().toISOString(),
+      };
+      dispatch({ type: 'AUTH_SUCCESS', payload: { user } });
     } catch (error) {
       console.error('Registration error:', error);
       dispatch({ type: 'AUTH_FAILURE' });
@@ -196,36 +170,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
+  const logout = async () => {
+    await signOut(auth);
     dispatch({ type: 'LOGOUT' });
   };
 
   const updateProfile = async (data: Partial<User>) => {
-    if (!state.user || !state.token) {
-      throw new Error('User not authenticated');
-    }
-
+    if (!auth.currentUser) throw new Error('User not authenticated');
     try {
-      const response = await fetch(`${API_BASE_URL}/users/${state.user.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${state.token}`,
-        },
-        body: JSON.stringify(data),
+      await updateFirebaseProfile(auth.currentUser, {
+        displayName: data.username,
+        photoURL: data.profile_picture,
       });
-
-      const responseData = await response.json();
-
-      if (response.ok) {
-        dispatch({
-          type: 'UPDATE_USER',
-          payload: { ...state.user, ...responseData.user },
-        });
-      } else {
-        throw new Error(responseData.message || 'Profile update failed');
-      }
+      const updated: User = {
+        ...(state.user as User),
+        username: data.username ?? state.user?.username,
+        profile_picture: data.profile_picture ?? state.user?.profile_picture,
+        bio: data.bio ?? state.user?.bio,
+      } as User;
+      dispatch({ type: 'UPDATE_USER', payload: updated });
     } catch (error) {
       console.error('Profile update error:', error);
       throw error;

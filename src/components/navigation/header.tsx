@@ -20,6 +20,7 @@ export const Header: React.FC = () => {
   const [isAuthModalOpen, setIsAuthModalOpen] = React.useState(false);
   const navigate = useNavigate();
   const { user, isAuthenticated, logout } = useAuth();
+  const displayName = React.useMemo(() => user?.username || user?.email || 'User', [user]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,7 +92,7 @@ export const Header: React.FC = () => {
 
         {/* User Actions */}
         <div className="flex items-center gap-2">
-          {isAuthenticated && user ? (
+          {(user || isAuthenticated) ? (
             <>
               <Button
                 variant="ghost"
@@ -107,16 +108,16 @@ export const Header: React.FC = () => {
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="h-10 w-10 rounded-full p-0">
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src={user.profile_picture} alt={user.username} />
+                      <AvatarImage src={user?.profile_picture} alt={displayName} />
                       <AvatarFallback>
-                        {user.username.charAt(0).toUpperCase()}
+                        {displayName.charAt(0).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
                   <div className="px-2 py-1.5">
-                    <p className="text-sm font-medium">{user.username}</p>
+                    <p className="text-sm font-medium">{displayName}</p>
                     <p className="text-xs text-muted-foreground">Movie Enthusiast</p>
                   </div>
                   <DropdownMenuSeparator />

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { useWatchlist } from '@/contexts/WatchlistContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { auth } from '@/lib/firebase';
 
 interface WatchlistButtonProps {
   imdbId: string;
@@ -24,14 +25,19 @@ export const WatchlistButton: React.FC<WatchlistButtonProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [watchlistItem, setWatchlistItem] = useState<any>(null);
   const { addToWatchlist, removeFromWatchlist, checkInWatchlist } = useWatchlist();
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const { toast } = useToast();
 
+  const isLoggedIn = Boolean(user) || Boolean(isAuthenticated) || Boolean(auth.currentUser);
+
   useEffect(() => {
-    if (isAuthenticated && imdbId) {
+    if (isLoggedIn && imdbId) {
       checkWatchlistStatus();
+    } else {
+      setIsInWatchlist(false);
+      setWatchlistItem(null);
     }
-  }, [isAuthenticated, imdbId]);
+  }, [isLoggedIn, imdbId]);
 
   const checkWatchlistStatus = async () => {
     try {
@@ -44,7 +50,7 @@ export const WatchlistButton: React.FC<WatchlistButtonProps> = ({
   };
 
   const handleToggleWatchlist = async () => {
-    if (!isAuthenticated) {
+    if (!isLoggedIn) {
       toast({
         title: 'Authentication Required',
         description: 'Please sign in to add movies to your watchlist.',
@@ -66,7 +72,10 @@ export const WatchlistButton: React.FC<WatchlistButtonProps> = ({
         });
       } else {
         await addToWatchlist(imdbId);
-        setIsInWatchlist(true);
+        // refresh local state after add
+        const result = await checkInWatchlist(imdbId);
+        setIsInWatchlist(result.inWatchlist);
+        setWatchlistItem(result.watchlistItem);
         toast({
           title: 'Added to Watchlist',
           description: `${movieTitle} has been added to your watchlist.`,
@@ -82,10 +91,6 @@ export const WatchlistButton: React.FC<WatchlistButtonProps> = ({
       setIsLoading(false);
     }
   };
-
-  if (!isAuthenticated) {
-    return null;
-  }
 
   return (
     <Button

@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
-import { useMovie } from "@/contexts/MovieContext";
+import { useWatchlist } from "@/contexts/WatchlistContext";
 
 const genres = [
   { id: "Action", name: "Action" },
@@ -40,7 +40,7 @@ const MoviesPage: React.FC = () => {
   const [viewMode, setViewMode] = React.useState<"grid" | "list">("grid");
   const [sortOrder, setSortOrder] = React.useState<"asc" | "desc">("desc");
   
-  const { addToWatchlist, removeFromWatchlist, watchlist } = useMovie();
+  const { addToWatchlist, removeFromWatchlist, items: watchlist } = useWatchlist();
 
   const category = searchParams.get("category") || "popular";
 
