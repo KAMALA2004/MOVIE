@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Play, Plus, Star, Calendar } from "lucide-react";
+import { Play, Star, Calendar } from "lucide-react";
 import { Movie } from "@/types/movie";
 import { getImageUrl } from "@/lib/omdb";
 import { Button } from "@/components/ui/button";
@@ -10,12 +10,14 @@ interface HeroSectionProps {
   movie: Movie;
   onWatchTrailer?: () => void;
   className?: string;
+  showWatchlistButton?: boolean;
 }
 
 export const HeroSection: React.FC<HeroSectionProps> = ({
   movie,
   onWatchTrailer,
-  className
+  className,
+  showWatchlistButton = true
 }) => {
   return (
     <section className={`relative min-h-[70vh] flex items-center ${className}`}>
@@ -72,13 +74,15 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
               Watch Trailer
             </Button>
             
-            <WatchlistButton
-              imdbId={movie.imdbID}
-              movieTitle={movie.Title}
-              variant="outline"
-              size="lg"
-              className="bg-background/20 border-border hover:bg-background/30"
-            />
+            {showWatchlistButton && (
+              <WatchlistButton
+                imdbId={movie.imdbID}
+                movieTitle={movie.Title}
+                variant="outline"
+                size="lg"
+                className="bg-background/20 border-border hover:bg-background/30"
+              />
+            )}
           </div>
         </div>
       </div>

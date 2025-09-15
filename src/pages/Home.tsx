@@ -70,6 +70,7 @@ const HomePage: React.FC = () => {
         <HeroSection
           movie={heroMovie}
           onWatchTrailer={handleWatchTrailer}
+          showWatchlistButton={false}
         />
       )}
 
